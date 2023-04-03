@@ -8,14 +8,16 @@ import {GroundProjectedEnv} from "three/addons/objects/GroundProjectedEnv.js"
 import Stats from "three/addons/libs/stats.module.js"
 import {GUI} from "dat.gui"
 import { Overlay } from "overlay"
+import * as Loader from "loader"
+import * as EventManager from "mouseEvents"
+import * as CameraManager from "cameraManager"
 
 // Useful constants
 const CLEAR_COLOR = 'rgb(60,60,60)';
-const MOUSE_MIN_DRAG_DIST = 10;
 
 // objects
-let scene, camera, renderer, overlay, raycaster, stats, gui,
- pointerDownPosition, selectionPoint, objectGroup, controls, controls2;
+let scene, camera, renderer, overlay, stats, gui,
+ pointerDownPosition, selectionPoint, intersectableObjectsGroup, controls, controls2;
 
 init();
 
@@ -43,72 +45,68 @@ function init()
     renderer.outputEncoding = THREE.sRGBEncoding;
 
     // Overlay Init
-    overlay = new Overlay("overlayDiv", onCameraOverlayMove);
+    overlay = new Overlay("overlayDiv", onCameraMoveCallback);
     overlay.setCameraAngle(camera);
 
     //window event binding
     window.addEventListener( 'resize', onWindowResize, false );
-    window.addEventListener( 'mousedown', onMouseDown);
-    window.addEventListener( 'mouseup', onMouseUp);
-    window.addEventListener( 'mousemove', onMouseMove);
+    window.addEventListener( 'mousedown', (event) => EventManager.onMouseDown(
+        event, 
+        pointerDownPosition)
+    );
+    window.addEventListener( 'mouseup', (event) => EventManager.onMouseUp(
+        event, 
+        camera, 
+        intersectableObjectsGroup.children,
+        pointerDownPosition, 
+        overlay, 
+        onCameraAlignWithViewCallback,
+        selectionPoint
+        )
+    );
+    window.addEventListener( 'mousemove', (event) => EventManager.onMouseMove(event, overlay));
 
     //GLTFLoader init and import
     const gltfLoader = new GLTFLoader();
     gltfLoader.setPath("assets/gltf_logo/");
-    gltfLoader.load("scene.gltf", gltf => onGLTFLoad(gltf),
-        // called while loading is progressing
-        function ( xhr ) {
-        //    console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-        },
-        // called when loading has errors
-        function ( error ) {
-            console.log( 'An error happened' );
-            console.log(error);
-        }
-    );
+    gltfLoader.load("scene.gltf", gltf => Loader.onGLTFLoad(intersectableObjectsGroup, gltf));
 
     gltfLoader.setPath("assets/shoe/");
     gltfLoader.load("MaterialsVariantsShoe.gltf", 
-        gltf => onGLTFLoad(gltf, new THREE.Vector3(0,0,0), new THREE.Vector3(0,0, -Math.PI/2)),
-        // called while loading is progressing
-        function ( xhr ) {
-        //    console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-        },
-        // called when loading has errors
-        function ( error ) {
-            console.log( 'An error happened' );
-            console.log(error);
-        }
+        gltf => Loader.onGLTFLoad(
+            intersectableObjectsGroup,
+            gltf,
+            new THREE.Vector3(0,0,0),
+            new THREE.Vector3(0,0, -Math.PI/2)
+        ),
     );
 
     gltfLoader.load("MaterialsVariantsShoe.gltf", 
-        gltf => onGLTFLoad(gltf, new THREE.Vector3(0.195,-0.1,0), new THREE.Vector3(0,0, Math.PI/2)),
-        // called while loading is progressing
-        function ( xhr ) {
-        //    console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-        },
-        // called when loading has errors
-        function ( error ) {
-            console.log( 'An error happened' );
-            console.log(error);
-        }
+        gltf => Loader.onGLTFLoad(
+            intersectableObjectsGroup, 
+            gltf, 
+            new THREE.Vector3(0.195,-0.1,0), 
+            new THREE.Vector3(0,0, Math.PI/2)
+        ),
     );
 
     // //Environment Map Loader init and import
     const rgbeLoader = new RGBELoader();
-    const backgroundTexture = rgbeLoader.load('./assets/modern_buildings_8k.hdr', onEnvironmentMapLoad);
+    const backgroundTexture = rgbeLoader.load('./assets/modern_buildings_8k.hdr',
+                                             (texture) => Loader.onEnvironmentMapLoad(scene, texture));
 
-    rgbeLoader.load('./assets/modern_buildings_1k.hdr', onReflectionMapLoad)
+    rgbeLoader.load('./assets/modern_buildings_1k.hdr',
+                     (texture) => Loader.onReflectionMapLoad(scene, texture))
 
     //shadow plane
-    let shadowGeom = new THREE.PlaneGeometry(20, 20);
+    const shadowGeom = new THREE.PlaneGeometry(20, 20);
     shadowGeom.rotateX(-Math.PI/2);
-    let shadowMat = new THREE.ShadowMaterial();
-    let shadowPlane = new THREE.Mesh(shadowGeom, shadowMat);
+    const shadowMat = new THREE.ShadowMaterial();
+    const shadowPlane = new THREE.Mesh(shadowGeom, shadowMat);
     shadowPlane.castShadow = true;
     shadowPlane.receiveShadow = true;
 
-    let light = new THREE.DirectionalLight( 0xffffff, 0 ); // here only for shadows
+    const light = new THREE.DirectionalLight( 0xffffff, 0 ); // here only for shadows
     light.position.set( 0, 1, 0 ); //default; light shining from top
     light.castShadow = true; // default false
     light.shadow.mapSize.width = 512; // default
@@ -117,14 +115,14 @@ function init()
     light.shadow.camera.far = 500; // default
     scene.add( light );
 
-    let boxGeom = new THREE.BoxGeometry(0.5,0.5,0.1);
-    let boxMat = new THREE.MeshStandardMaterial({color : "red"});
-    let box = new THREE.Mesh(boxGeom, boxMat);
+    const boxGeom = new THREE.BoxGeometry(0.5,0.5,0.1);
+    const boxMat = new THREE.MeshStandardMaterial({color : "red"});
+    const box = new THREE.Mesh(boxGeom, boxMat);
     box.castShadow = true;
 
     //Controls 
     controls = new OrbitControls( camera, renderer.domElement);
-    controls.addEventListener('change', onCameraMove);
+    controls.addEventListener('change', () => CameraManager.onCameraMove(camera, overlay));
     controls.enablePan = false;
 
     controls2 = new OrbitControls( camera, overlay.renderer.domElement);
@@ -132,17 +130,14 @@ function init()
     controls2.enablePan = false;
     controls2.enableRotate = false;
 
-    //raycaster
-    raycaster = new THREE.Raycaster();
-
     //mouse management
     pointerDownPosition = new THREE.Vector2();
 
     //highlighter
     let pointPos = new Float32Array([0,0,0]);
-    let poitnGeom = new THREE.BufferGeometry();
-    poitnGeom.setAttribute('position', new THREE.BufferAttribute( pointPos,3));
-    selectionPoint = new THREE.Points(poitnGeom, new THREE.PointsMaterial({color:0x00FF00, size: 0.1}));
+    let pointGeom = new THREE.BufferGeometry();
+    pointGeom.setAttribute('position', new THREE.BufferAttribute( pointPos,3));
+    selectionPoint = new THREE.Points(pointGeom, new THREE.PointsMaterial({color:0x00FF00, size: 0.1}));
     selectionPoint.visible = false;
     selectionPoint.name = "SelectionPoint";
 
@@ -159,26 +154,25 @@ function init()
                 }).name("Exposure");
     tonemappingGUI.open();
     let lightShadowGUI = gui.addFolder("ShadowCaster");
+
+    var shadowParams = {
+        color: 0x000000,
+        quality: 512
+    };
+
     lightShadowGUI.add(light.position, "x", -10,10);
     lightShadowGUI.add(light.position, "y", 0.1,10);
     lightShadowGUI.add(light.position, "z", -10,10);
-    lightShadowGUI.add(light.shadow.mapSize, "width", 64, 2048).onFinishChange( ()=>
+    lightShadowGUI.add(shadowParams, "quality", 64, 4096).onFinishChange( ()=>
         {
+            light.shadow.mapSize.width = shadowParams.quality;
+            light.shadow.mapSize.height = shadowParams.quality;
             light.shadow.map.dispose(); // important
             light.shadow.map = null;
         }
     );
-    lightShadowGUI.add(light.shadow.mapSize, "height", 64, 2048).onFinishChange( ()=>
-    {
-        light.shadow.map.dispose(); // important
-        light.shadow.map = null;
-    });
-
-    var params = {
-        color: 0x000000
-    };
-
-    lightShadowGUI.addColor(params, "color").onChange(()=>{shadowPlane.material.color.set(params.color);});
+    lightShadowGUI.add(light.shadow, "radius", 0,10);
+    lightShadowGUI.addColor(shadowParams, "color").onChange(()=>{shadowPlane.material.color.set(params.color);});
     lightShadowGUI.add(shadowPlane.material, "opacity", 0,1);
     lightShadowGUI.open();
 
@@ -191,17 +185,15 @@ function init()
     groundPlaneGUI.add(groundPlane, "height", 0, 100);
     groundPlaneGUI.open();
 
-
     //Stats init
     stats = new Stats();
     document.body.appendChild(stats.dom);
 
     //create group to put worldScene Objects (to separate from other scene objects when picking)
-    objectGroup = new THREE.Group();
-    objectGroup.name = "worldObjects";
-    objectGroup.translateY(0.6);
-    // objectGroup.add(box);
-    scene.add(objectGroup);
+    intersectableObjectsGroup = new THREE.Group();
+    intersectableObjectsGroup.name = "worldObjects";
+    intersectableObjectsGroup.translateY(0.6);
+    scene.add(intersectableObjectsGroup);
     scene.add(selectionPoint);
     scene.add(shadowPlane);
 
@@ -216,12 +208,6 @@ function render()
     overlay.render();
 }
 
-function updateControls()
-{
-    controls.update();
-    controls2.update();
-}
-
 function onWindowResize()
 {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -230,144 +216,12 @@ function onWindowResize()
     overlay.resize();
 }
 
-function onMouseClick(clientPos)
+function onCameraMoveCallback(overlayCam)
 {
-    let posCS = new THREE.Vector2(clientPos.x / window.innerWidth, - clientPos.y / window.innerHeight);
-    posCS.x = posCS.x*2 -1;
-    posCS.y = posCS.y*2 +1;
-    let mainSceneIntersection = raycastIntersection(posCS, camera, scene, "worldObjects");
-    if(!overlay.onMouseClick(clientPos, alignCameraWithView))
-    {
-        updateSelectionPoint(mainSceneIntersection);
-    }
+    CameraManager.onCameraOverlayMove(camera, overlayCam, [controls, controls2]);
 }
 
-function onMouseDown(event)
+function onCameraAlignWithViewCallback(newPosition)
 {
-    pointerDownPosition.x = event.x;
-    pointerDownPosition.y = event.y;
-}
-
-function onMouseUp(event)
-{
-    let pos = new THREE.Vector2(event.clientX, event.clientY);
-    if (pointerDownPosition.distanceTo(pos) < MOUSE_MIN_DRAG_DIST)
-    {
-        onMouseClick(pos);
-    }
-}
-
-function onMouseMove(event)
-{
-    if(event.buttons == 1){return} //mouse is down
-
-    const divUnderMouse = document.elementFromPoint(event.clientX, event.clientY);
-    let elementHover;
-    if(divUnderMouse.id == "OverlayScene")
-    {
-        let pos = new THREE.Vector2(event.clientX, event.clientY);
-        elementHover = overlay.raycastIntersection(pos);
-    }else{
-        elementHover = null;
-    }
-    
-    overlay.updateCubeFaceHighlight(elementHover);
-}
-
-function castShadowRecursive(element)
-{
-    element.castShadow = true;
-    if(element.children)
-    {
-        element.children.forEach(child => castShadowRecursive(child));
-    }
-}
-
-function onGLTFLoad(gltf, pos = new THREE.Vector3(0,0,0), rot = new THREE.Vector3(0,0,0))
-{
-    gltf.scene.position.set(pos.x, pos.y, pos.z);
-    gltf.scene.rotation.set(rot.x, rot.y, rot.z);
-    gltf.scene.castShadow = true;
-    castShadowRecursive(gltf.scene);
-    objectGroup.add(gltf.scene);
-    console.log(gltf);
-}
-
-function onEnvironmentMapLoad(texture)
-{
-    console.log("Adding Environment Map to scene");
-    texture.mapping = THREE.EquirectangularReflectionMapping;    
-    scene.background = texture;
-
-    return texture;
-}
-
-function onReflectionMapLoad(texture)
-{
-    console.log("Adding Reflection Map to scene");
-    texture.mapping = THREE.EquirectangularReflectionMapping;    
-    scene.environment = texture;
-    
-    return texture;
-}
-
-function raycastIntersection(positionCS, cam, myScene, objectGroupName)
-{
-    raycaster.setFromCamera( positionCS, cam);
-
-    // compute objects intersecting the picking ray
-	let intersects = raycaster.intersectObjects( myScene.getObjectByName(objectGroupName).children);
-    if( intersects.length==0)
-    {
-        return null;
-    }
-    return intersects[0];
-}
-
-function updateSelectionPoint(mainSceneIntersection)
-{
-    if(mainSceneIntersection != null)
-    {
-        console.log("Selected World Element:");
-        console.log(mainSceneIntersection);
-        selectionPoint.geometry.attributes.position.array = new Float32Array([mainSceneIntersection.point.x, mainSceneIntersection.point.y, mainSceneIntersection.point.z]);
-        selectionPoint.geometry.attributes.position.needsUpdate = true;
-    
-        selectionPoint.visible = true;
-        return;
-    }
-    console.log("Selected World Element: null");
-    selectionPoint.visible = false;
-}
-
-function onCameraMove()
-{
-    overlay.setCameraAngle(camera);
-}
-
-function onCameraOverlayMove(overlayCam)
-{
-    let currentCamSpherical = new THREE.Spherical();
-    let newCamSpherical = new THREE.Spherical();
-    currentCamSpherical.setFromCartesianCoords(camera.position.x, camera.position.y, camera.position.z);
-    newCamSpherical.setFromCartesianCoords(overlayCam.position.x, overlayCam.position.y, overlayCam.position.z);
-    newCamSpherical.radius = currentCamSpherical.radius;
-    let camNewPos = new THREE.Vector3().setFromSpherical(newCamSpherical);
-    camera.position.copy(camNewPos);
-    camera.lookAt(0,0,0);
-    updateControls();
-}
-
-function alignCameraWithView(newDirection)
-{
-    let newCameraAngle = new THREE.Spherical();
-    newCameraAngle.setFromCartesianCoords(newDirection.x, newDirection.y, newDirection.z);
-    let currentCamAngle = new THREE.Spherical();
-    currentCamAngle.setFromCartesianCoords(camera.position.x, camera.position.y, camera.position.z);
-    newCameraAngle.radius = currentCamAngle.radius;
-    let camNewPos = new THREE.Vector3().setFromSpherical(newCameraAngle);
-    camera.position.copy(camNewPos);
-    camera.lookAt(0,0,0);
-    onCameraMove(); //to update the overlay camera position
-    updateControls();
+    CameraManager.alignCameraWithView(camera, overlay, newPosition, [controls,controls2]);
 }

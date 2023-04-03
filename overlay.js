@@ -2,6 +2,7 @@
 
 import * as THREE from "three"
 import {OrbitControls} from "three/addons/controls/OrbitControls.js"
+import {raycastIntersection} from "mouseEvents"
 
 const xDir = new THREE.Vector3(1,0,0);
 const yDir = new THREE.Vector3(0,1,0);
@@ -107,7 +108,7 @@ export class Overlay{
 
     onMouseClick(clientPos, cubeFaceHitCallback)
     {
-        const closestHit = this.raycastIntersection(clientPos);
+        const closestHit = this.checkForIntersection(clientPos);
         if(closestHit != null)
         {
             cubeFaceHitCallback(closestHit.face.normal);
@@ -148,7 +149,7 @@ export class Overlay{
         this.currentHoverFaceID = newHoverFaceID;
     }
 
-    raycastIntersection(clientPos)
+    checkForIntersection(clientPos)
     {
         const overlayRect = this.renderer.domElement.getBoundingClientRect();
 
@@ -157,17 +158,7 @@ export class Overlay{
         posCS.x = posCS.x*2 -1;
         posCS.y = posCS.y*2 +1;
 
-        const raycaster = new THREE.Raycaster();
-
-        raycaster.setFromCamera(posCS, this.camera);
-
-        // compute objects intersecting the picking ray
-        let intersects = raycaster.intersectObjects([this.cube]);
-        if( intersects.length==0)
-        {
-            return null;
-        }
-        return intersects[0];
+        return raycastIntersection(posCS, this.camera, [this.cube]);
     }
     
     #getCubeFaceIDFromNormal(normal)
