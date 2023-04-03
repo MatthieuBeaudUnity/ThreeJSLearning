@@ -151,8 +151,9 @@ export class Overlay{
     raycastIntersection(clientPos)
     {
         const overlayRect = this.renderer.domElement.getBoundingClientRect();
-        let posCS = new THREE.Vector2((clientPos.x-overlayRect.x) / this.renderer.domElement.width,
-                                     -(clientPos.y-overlayRect.y) / this.renderer.domElement.height);
+
+        let posCS = new THREE.Vector2((clientPos.x-overlayRect.x) / overlayRect.width,
+                                    -(clientPos.y-overlayRect.y) / overlayRect.height);
         posCS.x = posCS.x*2 -1;
         posCS.y = posCS.y*2 +1;
 
