@@ -171,6 +171,5 @@ export class Overlay{
         if(normal.z == 1){return 4;}
         if(normal.z == -1){return 5;}
     }
-
     
 }

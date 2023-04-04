@@ -3,6 +3,12 @@ import {
     Vector3
     } from "three"
 
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js"
+import {RGBELoader} from "three/addons/loaders/RGBELoader.js"
+
+const gltfLoader = new GLTFLoader();
+const rgbeLoader = new RGBELoader();
+
 function castShadowRecursive(element)
 {
     element.castShadow = true;
@@ -12,30 +18,29 @@ function castShadowRecursive(element)
     }
 }
 
-export function onGLTFLoad(objectGroup, gltf, pos = new Vector3(0,0,0), rot = new Vector3(0,0,0))
+function onGLTFLoad(gltf, objectGroupToAddTo, pos = new Vector3(0,0,0), rot = new Vector3(0,0,0))
 {
     gltf.scene.position.set(pos.x, pos.y, pos.z);
     gltf.scene.rotation.set(rot.x, rot.y, rot.z);
     gltf.scene.castShadow = true;
     castShadowRecursive(gltf.scene);
-    objectGroup.add(gltf.scene);
     console.log(gltf);
+    objectGroupToAddTo.add(gltf.scene);
 }
 
-export function onEnvironmentMapLoad(scene, texture)
+function onCubeMapLoad(texture)
 {
-    console.log("Adding Environment Map to scene");
-    texture.mapping = EquirectangularReflectionMapping;    
-    scene.background = texture;
-
+    texture.mapping = EquirectangularReflectionMapping; 
     return texture;
 }
 
-export function onReflectionMapLoad(scene, texture)
+export function addGLTFToScene(folderPath, fileName, objectGroupToAddTo, pos = new Vector3(0,0,0), rot = new Vector3(0,0,0))
 {
-    console.log("Adding Reflection Map to scene");
-    texture.mapping = EquirectangularReflectionMapping;    
-    scene.environment = texture;
-    
-    return texture;
+    gltfLoader.setPath(folderPath);
+    gltfLoader.load(fileName, gltf => onGLTFLoad(gltf, objectGroupToAddTo, pos, rot));
+}
+
+export function loadCubemapTexture(path)
+{
+    return rgbeLoader.load(path, (texture) => onCubeMapLoad(texture));
 }

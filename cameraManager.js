@@ -3,39 +3,51 @@ import {
     Vector3 
 } from "three";
 
-export function onCameraMove(camera, overlay)
+export class CameraManager
 {
-    overlay.setCameraAngle(camera);
-}
+    mainSceneCamera;
+    overlayCamera;
+    mainSceneControlsList;
 
-export function onCameraOverlayMove(camera, overlayCam, controlsList)
-{
-    let currentCamSpherical = new Spherical();
-    let newCamSpherical = new Spherical();
-    currentCamSpherical.setFromCartesianCoords(camera.position.x, camera.position.y, camera.position.z);
-    newCamSpherical.setFromCartesianCoords(overlayCam.position.x, overlayCam.position.y, overlayCam.position.z);
-    newCamSpherical.radius = currentCamSpherical.radius;
-    let camNewPos = new Vector3().setFromSpherical(newCamSpherical);
-    camera.position.copy(camNewPos);
-    camera.lookAt(0,0,0);
-    updateControls(controlsList);
-}
+    constructor(mainCameraInstance, overlayCameraInstance, mainSceneControls)
+    {
+        this.mainSceneCamera = mainCameraInstance;
+        this.overlayCamera = overlayCameraInstance;
+        this.mainSceneControlsList = mainSceneControls;
+    };
 
-export function alignCameraWithView(camera, overlay, newDirection, controlsList)
-{
-    let newCameraAngle = new Spherical();
-    newCameraAngle.setFromCartesianCoords(newDirection.x, newDirection.y, newDirection.z);
-    let currentCamAngle = new Spherical();
-    currentCamAngle.setFromCartesianCoords(camera.position.x, camera.position.y, camera.position.z);
-    newCameraAngle.radius = currentCamAngle.radius;
-    let camNewPos = new Vector3().setFromSpherical(newCameraAngle);
-    camera.position.copy(camNewPos);
-    camera.lookAt(0,0,0);
-    onCameraMove(camera, overlay); //to update the overlay camera position
-    updateControls(controlsList);
-}
+    onMainCameraMove()
+    {
+        this.#alignCameraWithDirection(this.overlayCamera, this.mainSceneCamera.position);
+    }
 
-function updateControls(controlsList)
-{
-    controlsList.forEach( (controls) => controls.update());
+    onOverlayCameraMove()
+    {
+        this.#alignCameraWithDirection(this.mainSceneCamera, this.overlayCamera.position)
+        this.#updateMainSceneControls();
+    }
+
+    #alignCameraWithDirection(cam, direction)
+    {
+        let newCameraAngle = new Spherical();
+        newCameraAngle.setFromCartesianCoords(direction.x, direction.y, direction.z);
+        let currentCamAngle = new Spherical();
+        currentCamAngle.setFromCartesianCoords(cam.position.x, cam.position.y, cam.position.z);
+        newCameraAngle.radius = currentCamAngle.radius;
+        let camNewPos = new Vector3().setFromSpherical(newCameraAngle);
+        cam.position.copy(camNewPos);
+        cam.lookAt(0,0,0);
+    }
+
+    alignMainCameraWithDirection(direction)
+    {
+        this.#alignCameraWithDirection(this.mainSceneCamera, direction);
+        this.onMainCameraMove(); //to update the overlay camera position
+        this.#updateMainSceneControls();
+    }
+
+    #updateMainSceneControls()
+    {
+        this.mainSceneControlsList.forEach( (controls) => controls.update());
+    }
 }

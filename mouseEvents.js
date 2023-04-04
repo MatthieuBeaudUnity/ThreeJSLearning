@@ -7,6 +7,8 @@ const MOUSE_MIN_DRAG_DIST = 10;
 
 const raycaster = new Raycaster();
 
+let pointerDownPosition = new Vector2();
+
 function onMouseClick(clientPos, camera, objectGroupToIntersect, overlay, alignCameraWithViewFunction, selectionPoint)
 {
     let posCS = new Vector2(clientPos.x / window.innerWidth, - clientPos.y / window.innerHeight);
@@ -19,13 +21,13 @@ function onMouseClick(clientPos, camera, objectGroupToIntersect, overlay, alignC
     }
 }
 
-export function onMouseDown(event, pointerDownPosition)
+export function onMouseDown(event)
 {
     pointerDownPosition.x = event.x;
     pointerDownPosition.y = event.y;
 }
 
-export function onMouseUp(event, camera, objectGroupToIntersect, pointerDownPosition, overlay, alignCameraWithViewFunction, selectionPoint)
+export function onMouseUp(event, camera, objectGroupToIntersect, overlay, alignCameraWithViewFunction, selectionPoint)
 {
     let pos = new Vector2(event.clientX, event.clientY);
     if (pointerDownPosition.distanceTo(pos) < MOUSE_MIN_DRAG_DIST)
